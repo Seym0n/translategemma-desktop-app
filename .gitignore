@@ -1,24 +1,35 @@
-TranslateGemma.exe
-rsrc.syso
+# Binaries
 *.exe
 *.dll
 *.obj
 *.pdb
+
+# Wails build output
+build/bin/
+build/windows/
+
+# Wails generated JS bindings (auto-generated on build)
+frontend/wailsjs/
+
+# Go
+*.test
+*.out
+go.work
+go.work.sum
+
+# Logs / temp
 *.log
 *.tmp
 *.swp
 *.swo
 *.bak
+
+# OS
 .DS_Store
 Thumbs.db
 desktop.ini
-go.work
-go.work.sum
-*.test
-*.out
-bin/
-dist/
-build/
-tmp/
+
+# Editors
 .idea/
 .vscode/
+

@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TranslateGemma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #080b12;
+      --surface:      rgba(255,255,255,0.045);
+      --surface-hover:rgba(255,255,255,0.075);
+      --border:       rgba(255,255,255,0.08);
+      --border-focus: rgba(99,179,237,0.55);
+      --accent:       #63b3ed;
+      --accent-dim:   rgba(99,179,237,0.18);
+      --accent-glow:  rgba(99,179,237,0.35);
+      --text:         #e8edf5;
+      --text-muted:   rgba(232,237,245,0.45);
+      --text-label:   rgba(232,237,245,0.6);
+      --error:        #fc8181;
+      --success:      #68d391;
+      --radius-sm:    8px;
+      --radius-md:    14px;
+      --radius-lg:    20px;
+      --font-display: 'Syne', sans-serif;
+      --font-body:    'DM Sans', sans-serif;
+      --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.6;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Noise overlay ──────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Ambient glow orbs ──────────────────────────────────── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+      animation: orb-drift 18s ease-in-out infinite alternate;
+    }
+    .orb-1 {
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, rgba(99,179,237,0.12) 0%, transparent 70%);
+      top: -180px; left: -120px;
+      animation-delay: 0s;
+    }
+    .orb-2 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(154,117,234,0.1) 0%, transparent 70%);
+      bottom: -100px; right: -80px;
+      animation-delay: -9s;
+    }
+    .orb-3 {
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(99,237,180,0.07) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      animation-delay: -4s;
+    }
+    @keyframes orb-drift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(30px, 20px) scale(1.08); }
+    }
+    .orb-3 { animation: orb-drift-center 22s ease-in-out infinite alternate; }
+    @keyframes orb-drift-center {
+      from { transform: translate(-50%, -50%) scale(1); }
+      to   { transform: translate(calc(-50% + 40px), calc(-50% - 20px)) scale(1.1); }
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    #app {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 24px 28px 20px;
+      gap: 18px;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent) 0%, #9a75ea 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 20px var(--accent-glow);
+      flex-shrink: 0;
+    }
+    .logo-text {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, var(--text) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo-badge {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin-left: 4px;
+      text-transform: uppercase;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 5px 12px;
+      transition: all 0.3s var(--ease-smooth);
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background 0.3s;
+      box-shadow: 0 0 0 2px transparent;
+    }
+    .status-dot.online {
+      background: var(--success);
+      box-shadow: 0 0 0 3px rgba(104,211,145,0.2);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    .status-dot.translating {
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,179,237,0.25);
+      animation: pulse-dot 0.8s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100% { transform: scale(1); }
+      50%      { transform: scale(1.3); }
+    }
+
+    /* ── Language selector row ─────────────────────────────── */
+    .lang-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .lang-selector {
+      flex: 1;
+      position: relative;
+    }
+    .lang-selector-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-label);
+      margin-bottom: 6px;
+    }
+    .lang-trigger {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-smooth);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 14px;
+      user-select: none;
+    }
+    .lang-trigger:hover {
+      background: var(--surface-hover);
+      border-color: rgba(255,255,255,0.14);
+    }
+    .lang-trigger.open {
+      border-color: var(--border-focus);
+      background: var(--surface-hover);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .lang-trigger-name {
+      font-weight: 500;
+    }
+    .lang-trigger-code {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.07);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-left: auto;
+    }
+    .lang-trigger-arrow {
+      color: var(--text-muted);
+      transition: transform 0.2s var(--ease-spring);
+      flex-shrink: 0;
+    }
+    .lang-trigger.open .lang-trigger-arrow { transform: rotate(180deg); }
+
+    /* Dropdown panel */
+    .lang-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: rgba(12, 16, 26, 0.97);
+      backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      z-index: 100;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+      transform-origin: top center;
+      animation: dropdown-in 0.18s var(--ease-spring);
+    }
+    @keyframes dropdown-in {
+      from { opacity:0; transform: scaleY(0.92) translateY(-4px); }
+      to   { opacity:1; transform: scaleY(1)    translateY(0);    }
+    }
+    .lang-dropdown.hidden { display: none; }
+
+    .lang-search-wrap {
+      padding: 10px 10px 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .lang-search {
+      width: 100%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 13px;
+      padding: 8px 10px 8px 32px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .lang-search:focus { border-color: var(--border-focus); }
+    .lang-search::placeholder { color: var(--text-muted); }
+    .lang-search-icon {
+      position: absolute;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      font-size: 13px;
+    }
+    .lang-search-wrap { position: relative; }
+
+    .lang-list {
+      max-height: 240px;
+      overflow-y: auto;
+      padding: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.12) transparent;
+    }
+    .lang-list::-webkit-scrollbar { width: 4px; }
+    .lang-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius:2px; }
+
+    .lang-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.12s;
+      font-size: 13.5px;
+    }
+    .lang-option:hover { background: var(--surface-hover); }
+    .lang-option.selected { background: var(--accent-dim); color: var(--accent); }
+    .lang-option-code {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+    .lang-option.selected .lang-option-code { color: var(--accent); background: rgba(99,179,237,0.15); }
+    .lang-no-results {
+      padding: 16px 12px;
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    /* Swap button */
+    .swap-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px; height: 40px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.22s var(--ease-spring);
+      flex-shrink: 0;
+      margin-top: 22px;
+    }
+    .swap-btn:hover {
+      background: var(--accent-dim);
+      border-color: var(--border-focus);
+      color: var(--accent);
+      transform: rotate(180deg) scale(1.1);
+    }
+    .swap-btn svg { width: 16px; height: 16px; }
+
+    /* ── Translation area ───────────────────────────────────── */
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: visible;
+      transition: border-color 0.2s;
+      backdrop-filter: blur(12px);
+    }
+    .panel:focus-within {
+      border-color: rgba(255,255,255,0.14);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      overflow: visible;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+    .panel-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-label);
+    }
+    .panel-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .icon-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px; height: 28px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.15s var(--ease-smooth);
+      position: relative;
+    }
+    .icon-btn:hover {
+      background: var(--surface-hover);
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .icon-btn-danger:hover {
+      background: rgba(252,129,129,0.12);
+      border-color: rgba(252,129,129,0.35);
+      color: var(--error);
+    }
+    .icon-btn svg { width: 14px; height: 14px; }
+    .icon-btn .tooltip {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,20,35,0.95);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 11px;
+      padding: 3px 8px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      color: var(--text);
+      z-index: 200;
+    }
+    .icon-btn:hover .tooltip { opacity: 1; }
+
+    /* Textarea */
+    .panel-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .panel-footer {
+      padding: 8px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    }
+    textarea, .output-text {
+      flex: 1;
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.75;
+      padding: 16px 18px;
+      resize: none;
+      min-height: 0;
+    }
+    textarea::placeholder { color: var(--text-muted); }
+    .output-text {
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.1) transparent;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .output-text::-webkit-scrollbar { width: 4px; }
+    .output-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius:2px; }
+
+    /* Cursor blink on streaming */
+    .cursor-blink::after {
+      content: '▋';
+      color: var(--accent);
+      animation: blink 0.7s step-end infinite;
+      margin-left: 1px;
+    }
+    @keyframes blink {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0; }
+    }
+
+    /* Char count footer */
+    .char-count {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .char-count.warn { color: #f6ad55; }
+
+    /* Placeholder state for output */
+    .output-placeholder {
+      color: var(--text-muted);
+      font-size: 14px;
+      font-style: italic;
+    }
+
+    /* ── Divider / translate column ─────────────────────────── */
+    .panels-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 2px;
+    }
+    .divider-line {
+      flex: 1;
+      width: 1px;
+      background: var(--border);
+    }
+
+    /* ── Translate button ───────────────────────────────────── */
+    .translate-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--accent) 0%, #9a75ea 100%);
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+      color: #fff;
+      font-family: var(--font-display);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: all 0.22s var(--ease-spring);
+      box-shadow: 0 4px 20px rgba(99,179,237,0.35), 0 0 0 0 var(--accent-glow);
+      flex-shrink: 0;
+    }
+    .translate-btn:hover:not(:disabled) {
+      transform: scale(1.08);
+      box-shadow: 0 8px 32px rgba(99,179,237,0.5), 0 0 0 4px var(--accent-dim);
+    }
+    .translate-btn:active:not(:disabled) { transform: scale(0.96); }
+    .translate-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+      background: linear-gradient(135deg, #4a8ab5 0%, #6a52a0 100%);
+      box-shadow: none;
+    }
+    .translate-btn svg { width: 20px; height: 20px; }
+    .translate-btn .btn-label { font-size: 8.5px; letter-spacing: 0.07em; }
+    .translate-btn .btn-label-sm { font-size: 7px; letter-spacing: 0.09em; }
+
+    /* Spinner */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast notification ─────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: rgba(15, 22, 38, 0.96);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 20px;
+      font-size: 13px;
+      color: var(--text);
+      z-index: 9999;
+      transition: transform 0.35s var(--ease-spring), opacity 0.35s;
+      opacity: 0;
+      white-space: nowrap;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    #toast.error { border-color: rgba(252,129,129,0.4); }
+    #toast.success { border-color: rgba(104,211,145,0.4); }
+
+    /* ── Copy success flash ─────────────────────────────────── */
+    .copy-flash {
+      animation: copy-flash 0.4s ease-out;
+    }
+    @keyframes copy-flash {
+      0%   { background: rgba(99,179,237,0.15); }
+      100% { background: transparent; }
+    }
+
+    /* ── Keyboard shortcut hint ─────────────────────────────── */
+    .shortcut-hint {
+      font-size: 10px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .kbd {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 10px;
+      font-family: monospace;
+    }
+
+    /* ── Settings button ────────────────────────────────────── */
+    .settings-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 5px 12px 5px 9px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-smooth);
+      font-family: var(--font-body);
+    }
+    .settings-btn:hover {
+      background: var(--surface-hover);
+      border-color: rgba(255,255,255,0.14);
+      color: var(--text);
+    }
+    .settings-btn svg { flex-shrink: 0; transition: transform 0.4s var(--ease-smooth); }
+    .settings-btn:hover svg { transform: rotate(60deg); }
+
+    /* ── Modal backdrop ─────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(6px);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s var(--ease-smooth);
+    }
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* ── Modal panel ────────────────────────────────────────── */
+    .modal {
+      background: rgba(10, 14, 24, 0.97);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      width: 520px;
+      max-width: calc(100vw - 48px);
+      box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04) inset;
+      transform: translateY(16px) scale(0.97);
+      transition: transform 0.25s var(--ease-spring);
+      overflow: hidden;
+    }
+    .modal-backdrop.open .modal {
+      transform: translateY(0) scale(1);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .modal-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .modal-close {
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .modal-close:hover { background: var(--surface-hover); color: var(--text); }
+    .modal-close svg { width: 14px; height: 14px; }
+
+    .modal-body {
+      padding: 16px 22px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── Model cards ────────────────────────────────────────── */
+    .model-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.18s var(--ease-smooth);
+      position: relative;
+      user-select: none;
+    }
+    .model-card:hover {
+      background: var(--surface-hover);
+      border-color: rgba(255,255,255,0.14);
+    }
+    .model-card.selected {
+      background: var(--accent-dim);
+      border-color: var(--border-focus);
+    }
+    .model-card.selected::after {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-focus);
+      pointer-events: none;
+      box-shadow: 0 0 16px rgba(99,179,237,0.15);
+    }
+    .model-radio {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s;
+    }
+    .model-card.selected .model-radio {
+      border-color: var(--accent);
+    }
+    .model-radio-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      transform: scale(0);
+      transition: transform 0.18s var(--ease-spring);
+    }
+    .model-card.selected .model-radio-dot { transform: scale(1); }
+
+    .model-info { flex: 1; min-width: 0; }
+    .model-name-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
+    }
+    .model-name {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .model-tag {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.05);
+    }
+    .model-tag.default {
+      color: var(--accent);
+      border-color: rgba(99,179,237,0.35);
+      background: var(--accent-dim);
+    }
+    .model-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .model-pill {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .model-pill svg { width: 10px; height: 10px; opacity: 0.7; }
+    .model-size {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-align: right;
+      min-width: 42px;
+      flex-shrink: 0;
+    }
+    .model-card.selected .model-size { color: var(--accent); }
+
+    /* Scrollbar global */
+    textarea::-webkit-scrollbar { width: 4px; }
+    textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius:2px; }
+  </style>
+</head>
+<body>
+  <!-- Ambient orbs -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div id="app">
+    <!-- Header -->
+    <header>
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+            <path d="M5 8l6 6"/>
+            <path d="M4 14s1-1 2-1 3 2 4 2 2-1 3-1 2 1 3 1 2-1 2-1"/>
+            <path d="M19 10h-4l-4-5H7"/>
+            <path d="M7 10l-3 4"/>
+          </svg>
+        </div>
+        <span class="logo-text">TranslateGemma</span>
+        <span class="logo-badge">Local AI</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="status-pill">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">Connecting...</span>
+        </div>
+        <button class="settings-btn" id="settingsBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          Settings
+        </button>
+      </div>
+    </header>
+
+    <!-- Language row -->
+    <div class="lang-row">
+      <!-- Source language -->
+      <div class="lang-selector" id="sourceSel">
+        <div class="lang-selector-label">Source Language</div>
+        <div class="lang-trigger" id="sourceTrigger" tabindex="0">
+          <span class="lang-trigger-name" id="sourceName">English</span>
+          <span class="lang-trigger-code" id="sourceCode">en</span>
+          <svg class="lang-trigger-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div class="lang-dropdown hidden" id="sourceDropdown">
+          <div class="lang-search-wrap">
+            <span class="lang-search-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+            </span>
+            <input class="lang-search" id="sourceSearch" type="text" placeholder="Search language..." autocomplete="off" />
+          </div>
+          <div class="lang-list" id="sourceList"></div>
+        </div>
+      </div>
+
+      <!-- Swap button -->
+      <button class="swap-btn" id="swapBtn" title="Swap languages">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M7 16V4m0 0L3 8m4-4l4 4"/>
+          <path d="M17 8v12m0 0l4-4m-4 4l-4-4"/>
+        </svg>
+      </button>
+
+      <!-- Target language -->
+      <div class="lang-selector" id="targetSel">
+        <div class="lang-selector-label">Target Language</div>
+        <div class="lang-trigger" id="targetTrigger" tabindex="0">
+          <span class="lang-trigger-name" id="targetName">Spanish</span>
+          <span class="lang-trigger-code" id="targetCode">es</span>
+          <svg class="lang-trigger-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div class="lang-dropdown hidden" id="targetDropdown">
+          <div class="lang-search-wrap">
+            <span class="lang-search-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+            </span>
+            <input class="lang-search" id="targetSearch" type="text" placeholder="Search language..." autocomplete="off" />
+          </div>
+          <div class="lang-list" id="targetList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Translation panels -->
+    <div class="panels">
+      <!-- Input panel -->
+      <div class="panel" id="inputPanel">
+        <div class="panel-header">
+          <span class="panel-title">Input</span>
+          <div class="panel-actions">
+            <button class="icon-btn icon-btn-danger" id="clearBtn" title="Clear">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              <span class="tooltip">Clear</span>
+            </button>
+            <button class="icon-btn" id="pasteBtn" title="Paste from clipboard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1" ry="1"/>
+                <path d="M12 12v4M10 14l2 2 2-2"/>
+              </svg>
+              <span class="tooltip">Paste from clipboard</span>
+            </button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <textarea id="inputText" placeholder="Enter text to translate…" spellcheck="true" rows="1"></textarea>
+        </div>
+        <div class="panel-footer">
+          <span class="char-count" id="charCount">0 characters</span>
+          <span class="shortcut-hint">
+            <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> to translate
+          </span>
+        </div>
+      </div>
+
+      <!-- Center: divider + translate button -->
+      <div class="panels-center">
+        <div class="divider-line"></div>
+        <button class="translate-btn" id="translateBtn">
+          <svg id="btnIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+          <span class="btn-label btn-label-sm">Translate</span>
+        </button>
+        <div class="divider-line"></div>
+      </div>
+
+      <!-- Output panel -->
+      <div class="panel" id="outputPanel">
+        <div class="panel-header">
+          <span class="panel-title">Translation</span>
+          <div class="panel-actions">
+            <button class="icon-btn" id="copyBtn" title="Copy">
+              <svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <span class="tooltip">Copy translation</span>
+            </button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="output-text" id="outputText">
+            <span class="output-placeholder">Translation will appear here…</span>
+          </div>
+        </div>
+        <div class="panel-footer">
+          <span class="char-count" id="outputCharCount">—</span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="modalTitle">Model Settings</div>
+          <div class="modal-subtitle">Select the TranslateGemma model to use for translation</div>
+        </div>
+        <button class="modal-close" id="modalClose">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+
+        <!-- translategemma:latest -->
+        <div class="model-card selected" data-model="translategemma:latest">
+          <div class="model-radio"><div class="model-radio-dot"></div></div>
+          <div class="model-info">
+            <div class="model-name-row">
+              <span class="model-name">translategemma</span>
+              <span class="model-tag default">latest · default</span>
+            </div>
+            <div class="model-pills">
+              <span class="model-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                128K context
+              </span>
+              <span class="model-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                Text, Image
+              </span>
+            </div>
+          </div>
+          <div class="model-size">3.3 GB</div>
+        </div>
+
+        <!-- translategemma:4b -->
+        <div class="model-card" data-model="translategemma:4b">
+          <div class="model-radio"><div class="model-radio-dot"></div></div>
+          <div class="model-info">
+            <div class="model-name-row">
+              <span class="model-name">translategemma:4b</span>
+            </div>
+            <div class="model-pills">
+              <span class="model-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                128K context
+              </span>
+              <span class="model-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                Text, Image
+              </span>
+            </div>
+          </div>
+          <div class="model-size">3.3 GB</div>
+        </div>
+
+        <!-- translategemma:12b -->
+        <div class="model-card" data-model="translategemma:12b">
+          <div class="model-radio"><div class="model-radio-dot"></div></div>
+          <div class="model-info">
+            <div class="model-name-row">
+              <span class="model-name">translategemma:12b</span>
+            </div>
+            <div class="model-pills">
+              <span class="model-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                128K context
+              </span>
+              <span class="model-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                Text, Image
+              </span>
+            </div>
+          </div>
+          <div class="model-size">8.1 GB</div>
+        </div>
+
+        <!-- translategemma:27b -->
+        <div class="model-card" data-model="translategemma:27b">
+          <div class="model-radio"><div class="model-radio-dot"></div></div>
+          <div class="model-info">
+            <div class="model-name-row">
+              <span class="model-name">translategemma:27b</span>
+            </div>
+            <div class="model-pills">
+              <span class="model-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                128K context
+              </span>
+              <span class="model-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                Text, Image
+              </span>
+            </div>
+          </div>
+          <div class="model-size">17 GB</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <script>
+    // ── Wails runtime bridge ─────────────────────────────────
+    // window.go is injected by Wails at runtime; we wrap it here
+    // so the UI code is testable outside Wails too.
+    const Backend = {
+      getLanguages: () => window?.go?.main?.App?.GetLanguages?.() ?? Promise.resolve([]),
+      translateStream: (src, srcCode, tgt, tgtCode, text) =>
+        window?.go?.main?.App?.TranslateStream?.(src, srcCode, tgt, tgtCode, text) ?? Promise.resolve(),
+      getModel: () => window?.go?.main?.App?.GetModel?.() ?? Promise.resolve('translategemma:latest'),
+      setModel: (model) => window?.go?.main?.App?.SetModel?.(model) ?? Promise.resolve(),
+    };
+    const Events = {
+      on:  (ev, cb) => window?.runtime?.EventsOn?.(ev, cb),
+      off: (ev)     => window?.runtime?.EventsOff?.(ev),
+    };
+
+    // ── State ────────────────────────────────────────────────
+    let languages = [];
+    let sourceIdx = 0;  // index into languages[]
+    let targetIdx = 1;
+    let isTranslating = false;
+    let outputBuffer = '';
+    let chunkBuffer = '';
+    let activeDropdown = null; // 'source' | 'target' | null
+    let activeModel = 'translategemma:latest';
+
+    // ── DOM refs ─────────────────────────────────────────────
+    const $  = id => document.getElementById(id);
+    const statusDot      = $('statusDot');
+    const statusText     = $('statusText');
+    const sourceTrigger  = $('sourceTrigger');
+    const targetTrigger  = $('targetTrigger');
+    const sourceDropdown = $('sourceDropdown');
+    const targetDropdown = $('targetDropdown');
+    const sourceSearch   = $('sourceSearch');
+    const targetSearch   = $('targetSearch');
+    const sourceList     = $('sourceList');
+    const targetList     = $('targetList');
+    const sourceNameEl   = $('sourceName');
+    const sourceCodeEl   = $('sourceCode');
+    const targetNameEl   = $('targetName');
+    const targetCodeEl   = $('targetCode');
+    const swapBtn        = $('swapBtn');
+    const inputText      = $('inputText');
+    const outputText     = $('outputText');
+    const translateBtn   = $('translateBtn');
+    const btnIcon        = $('btnIcon');
+    const charCount      = $('charCount');
+    const outputCharCount= $('outputCharCount');
+    const pasteBtn       = $('pasteBtn');
+    const clearBtn       = $('clearBtn');
+    const copyBtn        = $('copyBtn');
+    const toast          = $('toast');
+    const settingsBtn    = $('settingsBtn');
+    const settingsModal  = $('settingsModal');
+    const modalClose     = $('modalClose');
+    const modelCards     = document.querySelectorAll('.model-card');
+
+    // ── Settings modal ───────────────────────────────────────
+    function openSettings() {
+      settingsModal.classList.add('open');
+      // Sync card selection to current activeModel
+      modelCards.forEach(card => {
+        const isSelected = card.dataset.model === activeModel;
+        card.classList.toggle('selected', isSelected);
+      });
+    }
+
+    function closeSettings() {
+      settingsModal.classList.remove('open');
+    }
+
+    settingsBtn.addEventListener('click', openSettings);
+    modalClose.addEventListener('click', closeSettings);
+
+    // Close on backdrop click (outside the modal panel)
+    settingsModal.addEventListener('click', e => {
+      if (e.target === settingsModal) closeSettings();
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && settingsModal.classList.contains('open')) closeSettings();
+    });
+
+    // Model card selection
+    modelCards.forEach(card => {
+      card.addEventListener('click', async () => {
+        const model = card.dataset.model;
+        if (model === activeModel) return;
+        activeModel = model;
+        modelCards.forEach(c => c.classList.toggle('selected', c.dataset.model === model));
+        await Backend.setModel(model);
+        showToast(`Model switched to ${model}`, 'success');
+        closeSettings();
+      });
+    });
+
+    // ── Toast ────────────────────────────────────────────────
+    let toastTimer;
+    function showToast(msg, type='info', duration=2800) {
+      toast.textContent = '';
+      const icon = document.createElement('span');
+      icon.textContent = type === 'error' ? '⚠' : type === 'success' ? '✓' : 'ℹ';
+      toast.appendChild(icon);
+      toast.appendChild(document.createTextNode(' ' + msg));
+      toast.className = 'show ' + type;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.className = ''; }, duration);
+    }
+
+    // ── Status pill ──────────────────────────────────────────
+    function setStatus(state) {
+      // state: 'connecting' | 'ready' | 'translating' | 'error'
+      statusDot.className = 'status-dot';
+      const map = {
+        connecting: ['', 'Connecting…'],
+        ready:      ['online', 'Ollama ready'],
+        translating:['translating', 'Translating…'],
+        error:      ['', 'Ollama offline'],
+      };
+      const [cls, txt] = map[state] || map.connecting;
+      if (cls) statusDot.classList.add(cls);
+      statusText.textContent = txt;
+    }
+
+    // ── Language list rendering ──────────────────────────────
+    function renderList(listEl, searchVal, side) {
+      const q = searchVal.toLowerCase().trim();
+      const filtered = languages.filter(l =>
+        l.Name.toLowerCase().includes(q) || l.Code.toLowerCase().includes(q)
+      );
+      listEl.innerHTML = '';
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div class="lang-no-results">No languages found</div>';
+        return;
+      }
+      const currentIdx = side === 'source' ? sourceIdx : targetIdx;
+      filtered.slice(0, 120).forEach(l => {
+        const realIdx = languages.indexOf(l);
+        const div = document.createElement('div');
+        div.className = 'lang-option' + (realIdx === currentIdx ? ' selected' : '');
+        div.innerHTML = `<span>${l.Name}</span><span class="lang-option-code">${l.Code}</span>`;
+        div.addEventListener('click', () => selectLanguage(side, realIdx));
+        listEl.appendChild(div);
+      });
+    }
+
+    function selectLanguage(side, idx) {
+      if (side === 'source') {
+        sourceIdx = idx;
+        sourceNameEl.textContent = languages[idx].Name;
+        sourceCodeEl.textContent = languages[idx].Code;
+        closeDropdown();
+      } else {
+        targetIdx = idx;
+        targetNameEl.textContent = languages[idx].Name;
+        targetCodeEl.textContent = languages[idx].Code;
+        closeDropdown();
+      }
+    }
+
+    function openDropdown(side) {
+      closeDropdown();
+      activeDropdown = side;
+      if (side === 'source') {
+        sourceTrigger.classList.add('open');
+        sourceDropdown.classList.remove('hidden');
+        sourceSearch.value = '';
+        renderList(sourceList, '', 'source');
+        setTimeout(() => sourceSearch.focus(), 40);
+      } else {
+        targetTrigger.classList.add('open');
+        targetDropdown.classList.remove('hidden');
+        targetSearch.value = '';
+        renderList(targetList, '', 'target');
+        setTimeout(() => targetSearch.focus(), 40);
+      }
+    }
+
+    function closeDropdown() {
+      activeDropdown = null;
+      sourceTrigger.classList.remove('open');
+      targetTrigger.classList.remove('open');
+      sourceDropdown.classList.add('hidden');
+      targetDropdown.classList.add('hidden');
+    }
+
+    sourceTrigger.addEventListener('click', () =>
+      activeDropdown === 'source' ? closeDropdown() : openDropdown('source'));
+    targetTrigger.addEventListener('click', () =>
+      activeDropdown === 'target' ? closeDropdown() : openDropdown('target'));
+
+    sourceSearch.addEventListener('input', () => renderList(sourceList, sourceSearch.value, 'source'));
+    targetSearch.addEventListener('input', () => renderList(targetList, targetSearch.value, 'target'));
+
+    // Close on outside click
+    document.addEventListener('click', e => {
+      if (!$('sourceSel').contains(e.target) && !$('targetSel').contains(e.target)) {
+        closeDropdown();
+      }
+    });
+
+    // ── Swap ─────────────────────────────────────────────────
+    swapBtn.addEventListener('click', () => {
+      const tmpIdx  = sourceIdx;
+      sourceIdx = targetIdx;
+      targetIdx = tmpIdx;
+      sourceNameEl.textContent = languages[sourceIdx].Name;
+      sourceCodeEl.textContent = languages[sourceIdx].Code;
+      targetNameEl.textContent = languages[targetIdx].Name;
+      targetCodeEl.textContent = languages[targetIdx].Code;
+    });
+
+    // ── Char count ───────────────────────────────────────────
+    inputText.addEventListener('input', () => {
+      const n = inputText.value.length;
+      charCount.textContent = n.toLocaleString() + ' character' + (n !== 1 ? 's' : '');
+      charCount.className = 'char-count' + (n > 4000 ? ' warn' : '');
+    });
+
+    // ── Paste ────────────────────────────────────────────────
+    pasteBtn.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        inputText.value = text;
+        inputText.dispatchEvent(new Event('input'));
+      } catch {
+        showToast('Clipboard access denied', 'error');
+      }
+    });
+
+    // ── Clear ────────────────────────────────────────────────
+    clearBtn.addEventListener('click', () => {
+      inputText.value = '';
+      inputText.dispatchEvent(new Event('input'));
+      inputText.focus();
+    });
+
+    // ── Copy output ──────────────────────────────────────────
+    copyBtn.addEventListener('click', async () => {
+      if (!outputBuffer) { showToast('Nothing to copy yet', 'info'); return; }
+      try {
+        await navigator.clipboard.writeText(outputBuffer);
+        // flash success icon
+        copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg><span class="tooltip">Copied!</span>`;
+        copyBtn.style.color = 'var(--success)';
+        showToast('Translation copied to clipboard', 'success');
+        setTimeout(() => {
+          copyBtn.innerHTML = `<svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tooltip">Copy translation</span>`;
+          copyBtn.style.color = '';
+        }, 1800);
+      } catch {
+        showToast('Copy failed', 'error');
+      }
+    });
+
+    // ── Translate ────────────────────────────────────────────
+    function setTranslating(v) {
+      isTranslating = v;
+      translateBtn.disabled = v;
+      if (v) {
+        translateBtn.innerHTML = `<div class="spinner"></div><span class="btn-label">Running</span>`;
+        setStatus('translating');
+      } else {
+        translateBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M5 12h14M12 5l7 7-7 7"/></svg><span class="btn-label btn-label-sm">Translate</span>`;
+        setStatus('ready');
+      }
+    }
+
+    function setOutput(text, streaming=false) {
+      outputBuffer = text;
+      if (!text) {
+        outputText.innerHTML = '<span class="output-placeholder">Translation will appear here…</span>';
+        outputCharCount.textContent = '—';
+        return;
+      }
+      // Escape HTML
+      const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      outputText.innerHTML = escaped + (streaming ? '<span class="cursor-blink"></span>' : '');
+      outputCharCount.textContent = text.length.toLocaleString() + ' character' + (text.length !== 1 ? 's' : '');
+      // Auto-scroll
+      outputText.scrollTop = outputText.scrollHeight;
+    }
+
+    async function doTranslate() {
+      if (isTranslating) return;
+      const text = inputText.value.trim();
+      if (!text) { showToast('Please enter text to translate', 'info'); return; }
+      if (languages.length === 0) { showToast('Languages not loaded yet', 'error'); return; }
+
+      const src = languages[sourceIdx];
+      const tgt = languages[targetIdx];
+
+      if (src.Code === tgt.Code) {
+        showToast('Source and target language are the same', 'info');
+        return;
+      }
+
+      setTranslating(true);
+      chunkBuffer = '';
+      setOutput('', true);
+
+      try {
+        await Backend.translateStream(src.Name, src.Code, tgt.Name, tgt.Code, text);
+      } catch (e) {
+        showToast('Translation error: ' + e, 'error', 5000);
+        setTranslating(false);
+        if (!chunkBuffer) setOutput('');
+      }
+    }
+
+    translateBtn.addEventListener('click', doTranslate);
+
+    // Ctrl+Enter shortcut
+    inputText.addEventListener('keydown', e => {
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); doTranslate(); }
+    });
+
+    // ── Streaming event listeners (registered once) ──────────
+    // Must be set up after Wails runtime is available. Called from init().
+    function setupStreamListeners() {
+      Events.on('translation:chunk', (chunk) => {
+        chunkBuffer += chunk;
+        setOutput(chunkBuffer, true);
+      });
+      Events.on('translation:done', () => {
+        setOutput(chunkBuffer, false);
+        setTranslating(false);
+      });
+      Events.on('translation:error', (msg) => {
+        showToast(msg, 'error', 5000);
+        setTranslating(false);
+        if (!chunkBuffer) setOutput('');
+      });
+    }
+
+    // ── Init ─────────────────────────────────────────────────
+    let initDone = false;
+    async function init() {
+      if (initDone) return;
+      initDone = true;
+
+      setStatus('connecting');
+
+      try {
+        languages = await Backend.getLanguages();
+        if (!languages || languages.length === 0) throw new Error('Empty language list');
+
+        // Find defaults
+        let si = languages.findIndex(l => l.Code === 'en');
+        let ti = languages.findIndex(l => l.Code === 'es');
+        if (si === -1) si = 0;
+        if (ti === -1) ti = 1;
+        sourceIdx = si;
+        targetIdx = ti;
+
+        sourceNameEl.textContent = languages[si].Name;
+        sourceCodeEl.textContent = languages[si].Code;
+        targetNameEl.textContent = languages[ti].Name;
+        targetCodeEl.textContent = languages[ti].Code;
+
+        setupStreamListeners();
+        activeModel = await Backend.getModel();
+        setStatus('ready');
+      } catch (e) {
+        setStatus('error');
+        showToast('Could not load languages from backend', 'error', 6000);
+      }
+    }
+
+    // Wails injects window.go asynchronously after the page loads.
+    // Poll until it is available, then init. Timeout after 5s.
+    function waitForWailsAndInit() {
+      const start = Date.now();
+      const poll = setInterval(() => {
+        if (window?.go?.main?.App) {
+          clearInterval(poll);
+          init();
+        } else if (Date.now() - start > 5000) {
+          clearInterval(poll);
+          setStatus('error');
+          showToast('Wails bridge not available', 'error', 6000);
+        }
+      }, 50);
+    }
+
+    waitForWailsAndInit();
+  </script>
+</body>
+</html>

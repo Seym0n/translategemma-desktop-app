@@ -1,0 +1,21 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "TranslateGemma",
+  "outputfilename": "TranslateGemma",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "wailsjsdir": "./frontend/wailsjs",
+  "version": "2",
+  "info": {
+    "companyName": "TranslateGemma",
+    "productName": "TranslateGemma",
+    "productVersion": "2.0.0",
+    "copyright": "Copyright 2026",
+    "comments": "Local AI Translation Desktop App"
+  },
+  "nsisType": "multiple",
+  "obfuscated": false,
+  "garbleargs": ""
+}
