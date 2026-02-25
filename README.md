@@ -12,18 +12,18 @@ A modern Windows Desktop Application for translating text using a local Ollama m
 
 1.  **Ollama**: You must have Ollama installed and running.
     -   Download from [ollama.com](https://ollama.com).
-2.  **Model**: You need the `translategemma:latest` model available in your Ollama instance.
-    -   If this is a custom model, ensure you have created/pulled it.
+2.  **Model**: You need the `translategemma:latest` or other model variants available in your Ollama instance.
     -   To check available models: `ollama list`.
-    -   If you need to pull a base model (e.g., `gemma`), use `ollama pull gemma`.
+    -   If `translategemma:latest` or other variants are missing, pull via `ollama pull translategemma:latest`. This process takes a while.
 
 ## How to Run
 
-1.  Ensure Ollama is running (`ollama serve` or via system tray).
+1.  Ensure Ollama is running (`ollama serve` or via system tray) via port `11434`.
 2.  Double-click `TranslateGemma.exe`.
 3.  Select Source and Target languages.
 4.  Enter text in the "Input Text" box.
 5.  Click "Translate".
+6.  Depending on whether the model is already loaded, you'll see the translation streamed in the output box.
 
 ## Building from Source
 
