@@ -60,24 +60,28 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
 
       - name: Build (arm64)
-        run: wails build -platform darwin/arm64 -o TranslateGemma-arm64
+        run: wails build -platform darwin/arm64
 
       - name: Build (amd64)
-        run: wails build -platform darwin/amd64 -o TranslateGemma-amd64
+        run: |
+          # Save the arm64 .app before the amd64 build overwrites build/bin/
+          mv build/bin/TranslateGemma.app build/bin/TranslateGemma-arm64.app
+          wails build -platform darwin/amd64
+          mv build/bin/TranslateGemma.app build/bin/TranslateGemma-amd64.app
 
       - name: Combine into universal binary with lipo
         run: |
-          lipo -create -output build/bin/TranslateGemma \
-            build/bin/TranslateGemma-arm64 \
-            build/bin/TranslateGemma-amd64
+          # Copy the arm64 bundle as the base for the universal bundle
+          cp -R build/bin/TranslateGemma-arm64.app build/bin/TranslateGemma.app
+          # Replace the inner binary with a universal one
+          lipo -create -output build/bin/TranslateGemma.app/Contents/MacOS/TranslateGemma \
+            build/bin/TranslateGemma-arm64.app/Contents/MacOS/TranslateGemma \
+            build/bin/TranslateGemma-amd64.app/Contents/MacOS/TranslateGemma
 
       - name: Zip .app bundle
         run: |
           cd build/bin
-          zip -r TranslateGemma-macos-universal.zip TranslateGemma.app 2>/dev/null \
-            || zip -r TranslateGemma-macos-universal.zip TranslateGemma
-        # Wails on macOS may output either a .app bundle or a bare binary
-        # depending on the build flags — we zip whichever is present.
+          zip -r TranslateGemma-macos-universal.zip TranslateGemma.app
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
