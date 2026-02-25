@@ -328,8 +328,77 @@
       background: rgba(255,255,255,0.06);
       border-radius: 3px;
       padding: 1px 5px;
+      flex-shrink: 0;
     }
     .lang-option.selected .lang-option-code { color: var(--accent); background: rgba(99,179,237,0.15); }
+
+    /* Group header row */
+    .lang-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px 4px;
+      margin-top: 4px;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      transition: background 0.12s;
+      user-select: none;
+    }
+    .lang-group-header:first-child { margin-top: 0; }
+    .lang-group-header:hover { background: var(--surface-hover); }
+    .lang-group-header.has-selected { color: var(--accent); }
+    .lang-group-name {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .lang-group-base-code {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      padding: 1px 5px;
+      color: var(--text-muted);
+    }
+    .lang-group-header.has-selected .lang-group-base-code {
+      background: rgba(99,179,237,0.15);
+      color: var(--accent);
+    }
+    .lang-group-meta {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .lang-group-count {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .lang-group-chevron {
+      color: var(--text-muted);
+      transition: transform 0.18s var(--ease-spring);
+      flex-shrink: 0;
+    }
+    .lang-group-chevron.open { transform: rotate(90deg); }
+
+    /* Variant rows (indented, smaller) */
+    .lang-variants {
+      overflow: hidden;
+      transition: max-height 0.2s var(--ease-smooth);
+    }
+    .lang-variants.collapsed { max-height: 0 !important; }
+    .lang-option.variant {
+      padding-left: 22px;
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+    .lang-option.variant:hover { color: var(--text); }
+    .lang-option.variant.selected { color: var(--accent); }
+    .lang-option.variant .lang-option-code { font-size: 10px; }
+
     .lang-no-results {
       padding: 16px 12px;
       color: var(--text-muted);
@@ -376,6 +445,8 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       overflow: visible;
+      min-height: 0;
+      height: 100%;
       transition: border-color 0.2s;
       backdrop-filter: blur(12px);
     }
@@ -466,8 +537,9 @@
       border-radius: 0 0 var(--radius-lg) var(--radius-lg);
     }
     textarea, .output-text {
-      flex: 1;
+      flex: 1 1 0;
       width: 100%;
+      height: 0;          /* forces flex to own the sizing — content can't push outward */
       background: transparent;
       border: none;
       outline: none;
@@ -478,18 +550,19 @@
       padding: 16px 18px;
       resize: none;
       min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
     textarea::placeholder { color: var(--text-muted); }
     .output-text {
-      overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,0.1) transparent;
       white-space: pre-wrap;
-      word-break: break-word;
     }
     .output-text::-webkit-scrollbar { width: 4px; }
     .output-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius:2px; }
-
     /* Cursor blink on streaming */
     .cursor-blink::after {
       content: '▋';
@@ -838,8 +911,9 @@
     .model-card.selected .model-size { color: var(--accent); }
 
     /* Scrollbar global */
-    textarea::-webkit-scrollbar { width: 4px; }
-    textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius:2px; }
+    textarea, .output-text { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+    textarea::-webkit-scrollbar, .output-text::-webkit-scrollbar { width: 4px; }
+    textarea::-webkit-scrollbar-thumb, .output-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius:2px; }
   </style>
 </head>
 <body>
@@ -1142,6 +1216,8 @@
     let chunkBuffer = '';
     let activeDropdown = null; // 'source' | 'target' | null
     let activeModel = 'translategemma:latest';
+    // Per-dropdown group expand state: { [side]: Set<baseCode> }
+    const expandedGroups = { source: new Set(), target: new Set() };
 
     // ── DOM refs ─────────────────────────────────────────────
     const $  = id => document.getElementById(id);
@@ -1244,37 +1320,157 @@
     }
 
     // ── Language list rendering ──────────────────────────────
+
+    // Returns the base code portion (everything before first '-')
+    function baseCode(code) { return code.split('-')[0]; }
+
+    // Returns the region/variant suffix (everything after first '-'), or null
+    function variantSuffix(code) {
+      const i = code.indexOf('-');
+      return i === -1 ? null : code.slice(i + 1);
+    }
+
+    // Build a flat option row and append to parent
+    function buildOptionRow(lang, realIdx, side, extraClass) {
+      const currentIdx = side === 'source' ? sourceIdx : targetIdx;
+      const div = document.createElement('div');
+      div.className = 'lang-option' + (extraClass ? ' ' + extraClass : '') + (realIdx === currentIdx ? ' selected' : '');
+      div.innerHTML = `<span>${lang.Name}</span><span class="lang-option-code">${lang.Code}</span>`;
+      div.addEventListener('click', () => selectLanguage(side, realIdx));
+      return div;
+    }
+
     function renderList(listEl, searchVal, side) {
       const q = searchVal.toLowerCase().trim();
-      const filtered = languages.filter(l =>
-        l.Name.toLowerCase().includes(q) || l.Code.toLowerCase().includes(q)
-      );
       listEl.innerHTML = '';
-      if (filtered.length === 0) {
-        listEl.innerHTML = '<div class="lang-no-results">No languages found</div>';
+
+      // ── Search mode: flat filtered list ──────────────────────
+      if (q) {
+        const filtered = languages.filter(l =>
+          l.Name.toLowerCase().includes(q) || l.Code.toLowerCase().includes(q)
+        );
+        if (filtered.length === 0) {
+          listEl.innerHTML = '<div class="lang-no-results">No languages found</div>';
+          return;
+        }
+        filtered.slice(0, 120).forEach(l => {
+          listEl.appendChild(buildOptionRow(l, languages.indexOf(l), side, ''));
+        });
         return;
       }
-      const currentIdx = side === 'source' ? sourceIdx : targetIdx;
-      filtered.slice(0, 120).forEach(l => {
-        const realIdx = languages.indexOf(l);
-        const div = document.createElement('div');
-        div.className = 'lang-option' + (realIdx === currentIdx ? ' selected' : '');
-        div.innerHTML = `<span>${l.Name}</span><span class="lang-option-code">${l.Code}</span>`;
-        div.addEventListener('click', () => selectLanguage(side, realIdx));
-        listEl.appendChild(div);
+
+      // ── Grouped mode ──────────────────────────────────────────
+      // Group languages by base code.
+      // Each group: { base: string, members: Language[] }
+      // members[0] is the base entry (if any), rest are variants.
+      const groupMap = new Map(); // baseCode -> { base: lang|null, variants: lang[] }
+      languages.forEach((l, i) => {
+        const bc = baseCode(l.Code);
+        if (!groupMap.has(bc)) groupMap.set(bc, { base: null, variants: [] });
+        const g = groupMap.get(bc);
+        if (l.Code === bc) {
+          g.base = { lang: l, idx: i };
+        } else {
+          g.variants.push({ lang: l, idx: i });
+        }
       });
+
+      const currentIdx = side === 'source' ? sourceIdx : targetIdx;
+      const expanded   = expandedGroups[side];
+
+      groupMap.forEach((g, bc) => {
+        const hasVariants = g.variants.length > 0;
+
+        if (!hasVariants) {
+          // Single entry — flat row (base or lone variant)
+          const entry = g.base ?? g.variants[0];
+          listEl.appendChild(buildOptionRow(entry.lang, entry.idx, side, ''));
+          return;
+        }
+
+        // Multi-entry group — determine if any member is selected
+        const allMembers = [g.base, ...g.variants].filter(Boolean);
+        const groupSelected = allMembers.some(e => e.idx === currentIdx);
+
+        // Auto-expand group if selected member is in it
+        if (groupSelected) expanded.add(bc);
+        const isOpen = expanded.has(bc);
+
+        // Group header: show base name (or first variant name as fallback), base code, count
+        const headerName = g.base ? g.base.lang.Name : g.variants[0].lang.Name.replace(/\s*\(.*\)$/, '').trim();
+        const count = allMembers.length;
+
+        const header = document.createElement('div');
+        header.className = 'lang-group-header' + (groupSelected ? ' has-selected' : '');
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'lang-group-name';
+        nameSpan.innerHTML = `${headerName}<span class="lang-group-base-code">${bc}</span>`;
+
+        const metaSpan = document.createElement('span');
+        metaSpan.className = 'lang-group-meta';
+        metaSpan.innerHTML =
+          `<span class="lang-group-count">${count}</span>` +
+          `<svg class="lang-group-chevron${isOpen ? ' open' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+        header.appendChild(nameSpan);
+        header.appendChild(metaSpan);
+
+        // Variants container
+        const variantsEl = document.createElement('div');
+        variantsEl.className = 'lang-variants' + (isOpen ? '' : ' collapsed');
+
+        // Measure height after insert — use a fixed safe value trick:
+        // We'll set max-height via inline style after render.
+        const rowHeight = 32; // approx px per variant row
+        variantsEl.style.maxHeight = isOpen ? `${(count) * rowHeight + 8}px` : '0';
+
+        // Populate variants (and base entry if present)
+        allMembers.forEach(e => {
+          variantsEl.appendChild(buildOptionRow(e.lang, e.idx, side, 'variant'));
+        });
+
+        // Toggle on header click
+        header.addEventListener('click', () => {
+          const nowOpen = expanded.has(bc);
+          if (nowOpen) {
+            expanded.delete(bc);
+            variantsEl.style.maxHeight = '0';
+            variantsEl.classList.add('collapsed');
+            header.querySelector('.lang-group-chevron').classList.remove('open');
+          } else {
+            expanded.add(bc);
+            variantsEl.style.maxHeight = `${(count) * rowHeight + 8}px`;
+            variantsEl.classList.remove('collapsed');
+            header.querySelector('.lang-group-chevron').classList.add('open');
+          }
+        });
+
+        listEl.appendChild(header);
+        listEl.appendChild(variantsEl);
+      });
+
+      if (listEl.children.length === 0) {
+        listEl.innerHTML = '<div class="lang-no-results">No languages found</div>';
+      }
     }
 
     function selectLanguage(side, idx) {
+      const lang = languages[idx];
+      // Display: if the language has a variant suffix, show "Name · SUFFIX"
+      const suffix = variantSuffix(lang.Code);
+      const displayName = suffix ? `${lang.Name}` : lang.Name;
+      const displayCode = lang.Code;
+
       if (side === 'source') {
         sourceIdx = idx;
-        sourceNameEl.textContent = languages[idx].Name;
-        sourceCodeEl.textContent = languages[idx].Code;
+        sourceNameEl.textContent = displayName;
+        sourceCodeEl.textContent = displayCode;
         closeDropdown();
       } else {
         targetIdx = idx;
-        targetNameEl.textContent = languages[idx].Name;
-        targetCodeEl.textContent = languages[idx].Code;
+        targetNameEl.textContent = displayName;
+        targetCodeEl.textContent = displayCode;
         closeDropdown();
       }
     }
@@ -1282,6 +1478,8 @@
     function openDropdown(side) {
       closeDropdown();
       activeDropdown = side;
+      // Reset expanded state so renderList can auto-expand the selected group
+      expandedGroups[side].clear();
       if (side === 'source') {
         sourceTrigger.classList.add('open');
         sourceDropdown.classList.remove('hidden');
