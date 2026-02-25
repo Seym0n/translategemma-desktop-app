@@ -1,6 +1,6 @@
 # <img width="32" height="32" alt="appicon" src="https://github.com/user-attachments/assets/fe60060a-6c0c-4435-aa41-2af811cf03f9" /> TranslateGemma Desktop App
 
-A modern Windows Desktop Application for translating text using a local Ollama model (`translategemma:latest`).
+A modern Desktop Application for translating text using a local Ollama model (`translategemma:latest`).
 
 <img width="550"  alt="Screenshot 2026-02-25 195701" src="https://github.com/user-attachments/assets/3305b3cc-6163-42fc-ab55-a77a2e82013b" />
 
