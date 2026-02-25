@@ -37,19 +37,19 @@ A modern Windows Desktop Application for translating text using a local Ollama m
 
 ## FAQ / Troubleshooting
 
+<details>
 <summary><b>Why doesn't it translate immediately?</b></summary>
 
 The first translation after starting the app (or after a period of inactivity) requires Ollama to load the model into memory, which can take several seconds or longer depending on your hardware. Subsequent translations are faster because the model stays loaded. You can verify the model is ready with `ollama list` or by checking the Ollama system tray icon.
 
 </details>
+
 <details>
 <summary><b>Why does Windows SmartScreen pop up?</b></summary>
 
 The `.exe` is not code-signed, so Windows SmartScreen flags it as an unrecognized app. This is expected for unsigned binaries distributed outside the Microsoft Store. To proceed, click **More info** → **Run anyway**.
 
 </details>
-
-<details>
 
 ## Building from Source
 
