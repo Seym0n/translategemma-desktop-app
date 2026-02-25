@@ -6,7 +6,7 @@
 
 # Wails build output
 build/bin/
-build/windows/
+build/windows/icon.ico
 
 # Wails generated JS bindings (auto-generated on build)
 frontend/wailsjs/

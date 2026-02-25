@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag (e.g. v1.2.3) — used only for artifact naming in manual runs'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: write   # needed to create GitHub Releases and upload assets
+
+jobs:
+  # ── Windows ──────────────────────────────────────────────────────────────
+  build-windows:
+    name: Build / Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+
+      - name: Build
+        run: wails build -platform windows/amd64 -o TranslateGemma.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TranslateGemma-windows-amd64
+          path: build/bin/TranslateGemma.exe
+          if-no-files-found: error
+
+  # ── macOS ─────────────────────────────────────────────────────────────────
+  build-macos:
+    name: Build / macOS (universal)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+
+      - name: Build (arm64)
+        run: wails build -platform darwin/arm64 -o TranslateGemma-arm64
+
+      - name: Build (amd64)
+        run: wails build -platform darwin/amd64 -o TranslateGemma-amd64
+
+      - name: Combine into universal binary with lipo
+        run: |
+          lipo -create -output build/bin/TranslateGemma \
+            build/bin/TranslateGemma-arm64 \
+            build/bin/TranslateGemma-amd64
+
+      - name: Zip .app bundle
+        run: |
+          cd build/bin
+          zip -r TranslateGemma-macos-universal.zip TranslateGemma.app 2>/dev/null \
+            || zip -r TranslateGemma-macos-universal.zip TranslateGemma
+        # Wails on macOS may output either a .app bundle or a bare binary
+        # depending on the build flags — we zip whichever is present.
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TranslateGemma-macos-universal
+          path: build/bin/TranslateGemma-macos-universal.zip
+          if-no-files-found: error
+
+  # ── Linux ─────────────────────────────────────────────────────────────────
+  build-linux:
+    name: Build / Linux
+    runs-on: ubuntu-22.04   # 22.04 ships webkit2gtk-4.0; 24.04 only has 4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libayatana-appindicator3-dev \
+            pkg-config \
+            build-essential
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+
+      - name: Build
+        run: wails build -platform linux/amd64 -o TranslateGemma
+
+      - name: Make executable & compress
+        run: |
+          chmod +x build/bin/TranslateGemma
+          tar -czf build/bin/TranslateGemma-linux-amd64.tar.gz \
+            -C build/bin TranslateGemma
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TranslateGemma-linux-amd64
+          path: build/bin/TranslateGemma-linux-amd64.tar.gz
+          if-no-files-found: error
+
+  # ── GitHub Release ────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    # Only publish a real release on tag pushes; skip for workflow_dispatch
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: TranslateGemma ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: |
+            dist/TranslateGemma-windows-amd64/TranslateGemma.exe
+            dist/TranslateGemma-macos-universal/TranslateGemma-macos-universal.zip
+            dist/TranslateGemma-linux-amd64/TranslateGemma-linux-amd64.tar.gz

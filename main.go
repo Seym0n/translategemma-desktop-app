@@ -24,7 +24,7 @@ func main() {
 		MinHeight:        600,
 		DisableResize:    false,
 		Frameless:        false,
-		BackgroundColour: &options.RGBA{R: 10, G: 10, B: 15, A: 255},
+		BackgroundColour: &options.RGBA{R: 245, G: 244, B: 242, A: 255},
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -35,9 +35,8 @@ func main() {
 			app,
 		},
 		Windows: &windows.Options{
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			BackdropType:         windows.Mica,
+			WebviewIsTransparent: false,
+			WindowIsTranslucent:  false,
 		},
 	})
 
