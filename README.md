@@ -54,7 +54,7 @@ The `.exe` is not code-signed, so Windows SmartScreen flags it as an unrecognize
 ## Building from Source
 
 Requirements:
--   Go 1.20+
+-   Go 1.26+
 -   Wait for `rsrc` tool (optional, for manifest embedding).
 
 Steps:
