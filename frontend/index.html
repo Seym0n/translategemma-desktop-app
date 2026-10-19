@@ -1072,11 +1072,17 @@
         window?.go?.main?.App?.TranslateStream?.(src, srcCode, tgt, tgtCode, text) ?? Promise.resolve(),
       getModel: () => window?.go?.main?.App?.GetModel?.() ?? Promise.resolve('translategemma:latest'),
       setModel: (model) => window?.go?.main?.App?.SetModel?.(model) ?? Promise.resolve(),
+      getSettings: () => window?.go?.main?.App?.GetSettings?.() ?? Promise.resolve({}),
+      setLanguageSelection: (src, tgt) => window?.go?.main?.App?.SetLanguageSelection?.(src, tgt) ?? Promise.resolve(),
     };
     const Events = {
       on:  (ev, cb) => window?.runtime?.EventsOn?.(ev, cb),
       off: (ev)     => window?.runtime?.EventsOff?.(ev),
     };
+
+    function saveLanguageSelection() {
+      Backend.setLanguageSelection(languages[sourceIdx].Code, languages[targetIdx].Code);
+    }
 
     // ── State ────────────────────────────────────────────────
     let languages = [];
@@ -1344,6 +1350,7 @@
         targetCodeEl.textContent = displayCode;
         closeDropdown();
       }
+      saveLanguageSelection();
     }
 
     function openDropdown(side) {
@@ -1398,6 +1405,7 @@
       sourceCodeEl.textContent = languages[sourceIdx].Code;
       targetNameEl.textContent = languages[targetIdx].Name;
       targetCodeEl.textContent = languages[targetIdx].Code;
+      saveLanguageSelection();
     });
 
     // ── Char count ───────────────────────────────────────────
@@ -1540,6 +1548,13 @@
         let ti = languages.findIndex(l => l.Code === 'es');
         if (si === -1) si = 0;
         if (ti === -1) ti = 1;
+
+        // Restore the last used languages, if any
+        const saved = await Backend.getSettings();
+        const savedSi = languages.findIndex(l => l.Code === saved.sourceCode);
+        const savedTi = languages.findIndex(l => l.Code === saved.targetCode);
+        if (savedSi !== -1) si = savedSi;
+        if (savedTi !== -1) ti = savedTi;
         sourceIdx = si;
         targetIdx = ti;
 

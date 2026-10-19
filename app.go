@@ -32,10 +32,16 @@ type OllamaResponse struct {
 type App struct {
 	ctx         context.Context
 	activeModel string
+	settings    Settings
 }
 
 func NewApp() *App {
-	return &App{activeModel: DefaultModel}
+	settings := loadSettings()
+	model := settings.Model
+	if model == "" {
+		model = DefaultModel
+	}
+	return &App{activeModel: model, settings: settings}
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -50,6 +56,20 @@ func (a *App) GetModel() string {
 // SetModel updates the active model
 func (a *App) SetModel(model string) {
 	a.activeModel = model
+	a.settings.Model = model
+	_ = saveSettings(a.settings)
+}
+
+// GetSettings returns the persisted settings; language codes are empty if none were saved yet
+func (a *App) GetSettings() Settings {
+	return a.settings
+}
+
+// SetLanguageSelection remembers the source and target language codes
+func (a *App) SetLanguageSelection(sourceCode, targetCode string) {
+	a.settings.SourceCode = sourceCode
+	a.settings.TargetCode = targetCode
+	_ = saveSettings(a.settings)
 }
 
 // GetLanguages returns all supported languages as a JSON-serializable slice
