@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -90,7 +91,7 @@ Produce only the %s translation, without any additional explanations or commenta
 	if err != nil {
 		msg := fmt.Sprintf("Failed to connect to Ollama: %v", err)
 		runtime.EventsEmit(a.ctx, "translation:error", msg)
-		return fmt.Errorf(msg)
+		return errors.New(msg)
 	}
 	defer resp.Body.Close()
 
@@ -98,7 +99,7 @@ Produce only the %s translation, without any additional explanations or commenta
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		msg := fmt.Sprintf("Ollama returned status: %s, body: %s", resp.Status, string(bodyBytes))
 		runtime.EventsEmit(a.ctx, "translation:error", msg)
-		return fmt.Errorf(msg)
+		return errors.New(msg)
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -122,7 +123,7 @@ Produce only the %s translation, without any additional explanations or commenta
 	if err := scanner.Err(); err != nil {
 		msg := fmt.Sprintf("Stream read error: %v", err)
 		runtime.EventsEmit(a.ctx, "translation:error", msg)
-		return fmt.Errorf(msg)
+		return errors.New(msg)
 	}
 
 	runtime.EventsEmit(a.ctx, "translation:done", "")
